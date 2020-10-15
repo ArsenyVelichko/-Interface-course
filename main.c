@@ -8,6 +8,7 @@
 #include <windows.h>
 #include "TextData.h"
 #include "View.h"
+#include "Resource.h"
 
 /*  Declare Windows procedure  */
 LRESULT CALLBACK WindowProcedure(HWND, UINT, WPARAM, LPARAM);
@@ -34,7 +35,7 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
   wincl.hIcon = LoadIcon(NULL, IDI_APPLICATION);
   wincl.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
   wincl.hCursor = LoadCursor(NULL, IDC_ARROW);
-  wincl.lpszMenuName = NULL;                 /* No menu */
+  wincl.lpszMenuName = L"Interface";
   wincl.cbClsExtra = 0;                      /* No extra bytes after the window class */
   wincl.cbWndExtra = 0;                      /* structure or the window instance */
   /* Use Windows's default colour as the background of the window */
@@ -57,7 +58,7 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
     HWND_DESKTOP,        /* The window is a child-window to desktop */
     NULL,                /* No menu */
     hThisInstance,       /* Program Instance handler */
-    lpszArgument         /* No Window Creation data */
+    NULL         /* No Window Creation data */
   );
 
   /* Make the window visible on the screen */
@@ -76,6 +77,8 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
 }
 
 static int defineVScrollInc(WPARAM wParam, const View* view) {
+  if (!view) { return 0; }
+
   int vScrollInc;
   switch (LOWORD(wParam)) {
   case SB_TOP:
@@ -113,6 +116,8 @@ static int defineVScrollInc(WPARAM wParam, const View* view) {
 }
 
 static int defineHScrollInc(WPARAM wParam, const View* view) {
+  if (!view) { return 0; }
+
   int hScrollInc;
   switch (LOWORD(wParam)) {
   case SB_LINEUP:
@@ -133,6 +138,61 @@ static int defineHScrollInc(WPARAM wParam, const View* view) {
   return hScrollInc;
 }
 
+static BOOL openFile(HWND hwnd, View** view, TextData** textData) {
+  OPENFILENAMEA ofn;
+  char szFile[MAX_PATH];
+
+  ZeroMemory(&ofn, sizeof(ofn));
+  ofn.lStructSize = sizeof(ofn);
+  ofn.hwndOwner = hwnd;
+  ofn.lpstrFile = szFile;
+  ofn.lpstrFilter = "Text\0*.TXT\0";
+  ofn.nFilterIndex = 1;
+  ofn.lpstrFile[0] = '\0';
+  ofn.nMaxFile = sizeof(szFile);
+  ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+
+  if (GetOpenFileNameA(&ofn)) {
+    *textData = createTextData(ofn.lpstrFile);
+    *view = createView(*textData, TRUE, hwnd);
+
+    RECT currRc;
+    GetClientRect(hwnd, &currRc);
+    resizeView(*view, currRc.right, currRc.bottom);
+    InvalidateRect(hwnd, &currRc, TRUE);
+    return TRUE;
+  }
+  return FALSE;
+}
+
+static BOOL processCommand(HWND hwnd, WPARAM wParam, View** view, TextData** textData) {
+  BOOL result = FALSE;
+  switch (LOWORD(wParam)) {
+  case IDM_OPENFILE:
+  {
+    result = openFile(hwnd, view, textData);
+    break;
+  }
+  case IDM_LINEBREAK:
+  {
+    HMENU hMenu = GetMenu(hwnd);
+    if (GetMenuState(hMenu, IDM_LINEBREAK, MF_BYCOMMAND) == MF_CHECKED) {
+      CheckMenuItem(hMenu, IDM_LINEBREAK, MF_UNCHECKED);
+      (*view)->lineBreak = FALSE;
+
+    } else {
+      CheckMenuItem(hMenu, IDM_LINEBREAK, MF_CHECKED);
+      (*view)->lineBreak = TRUE;
+    }
+  }
+  default:
+  {
+    break;
+  }
+  }
+  return result;
+}
+
 /*  This function is called by the Windows function DispatchMessage()  */
 LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
   static TextData* textData = NULL;
@@ -140,13 +200,6 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
 
   switch (message)                  /* handle the messages */
   {
-  case WM_CREATE:
-  {
-    CREATESTRUCT* cStruct = (CREATESTRUCT*)lParam;
-    textData = createTextData(cStruct->lpCreateParams);
-    view = createView(textData, hwnd);
-    break;
-  }
   case WM_SIZE:
   {
     resizeView(view, LOWORD(lParam), HIWORD(lParam));
@@ -169,10 +222,15 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
     drawView(view);
     break;
   }
+  case WM_COMMAND:
+  {
+    processCommand(hwnd, wParam, &view, &textData);
+    break;
+  }
   case WM_DESTROY:
   {
     freeTextData(textData);
-    free(view);
+    freeView(view);
     PostQuitMessage(0);       /* send a WM_QUIT to the message queue */
     break;
   }

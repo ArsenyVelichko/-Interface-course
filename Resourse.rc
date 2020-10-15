@@ -1,0 +1,11 @@
+#include "Resource.h"
+
+Interface MENU {
+  POPUP "&Файл" {
+    MENUITEM "&Открыть...",        IDM_OPENFILE
+  }
+
+  POPUP "Фор&мат" {
+    MENUITEM "&Перенос по символам", IDM_LINEBREAK, CHECKED
+  }
+}

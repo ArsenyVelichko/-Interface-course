@@ -30,9 +30,10 @@ static int* splitToStrings(const char* buf, int* strCount) {
 
 static int maxLen(int* strBegin, int size) {
   int maxLen = 0;
-  for (int i = 0; i < size; i++) {
-    maxLen = max(strBegin[i + 1] - strBegin[i], maxLen);
+  for (int i = 0; i < size - 1; i++) {
+    maxLen = max(strBegin[i + 1] - strBegin[i] - 1, maxLen);
   }
+  maxLen = max(strBegin[size] - strBegin[size - 1], maxLen);
   return maxLen;
 }
 
@@ -50,10 +51,10 @@ TextData* createTextData(const char* fileName) {
   TextData* textData = malloc(sizeof(TextData));
 
   if (textData) {
-    textData->strings = malloc(len * sizeof(char));
+    textData->strings = malloc((len + 1) * sizeof(char));
     if (textData->strings) {
       fread(textData->strings, sizeof(char), len, source);
-      textData->strings[len - 1] = '\0';
+      textData->strings[len] = '\0';
       textData->strBegin = splitToStrings(textData->strings, &textData->strCount);
     }
 
