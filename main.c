@@ -28,7 +28,7 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
   wincl.hInstance = hThisInstance;
   wincl.lpszClassName = szClassName;
   wincl.lpfnWndProc = WindowProcedure;      /* This function is called by windows */
-  wincl.style = CS_DBLCLKS;                 /* Catch double-clicks */
+  wincl.style = CS_OWNDC;                 /* Catch double-clicks */
   wincl.cbSize = sizeof(WNDCLASSEX);
 
   /* Use default icon and mouse-pointer */
@@ -38,8 +38,7 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
   wincl.lpszMenuName = L"Interface";
   wincl.cbClsExtra = 0;                      /* No extra bytes after the window class */
   wincl.cbWndExtra = 0;                      /* structure or the window instance */
-  /* Use Windows's default colour as the background of the window */
-  wincl.hbrBackground = CreateSolidBrush(0x00FFFFFF);
+  wincl.hbrBackground = GetStockObject(WHITE_BRUSH);
 
   /* Register the window class, and if it fails quit the program */
   if (!RegisterClassEx(&wincl))
@@ -50,7 +49,7 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
     0,                   /* Extended possibilites for variation */
     szClassName,         /* Classname */
     _T("Code::Blocks Template Windows App"),       /* Title Text */
-    WS_OVERLAPPEDWINDOW | WS_VSCROLL | WS_HSCROLL, /* default window */
+    WS_OVERLAPPEDWINDOW | WS_VSCROLL | WS_HSCROLL,
     CW_USEDEFAULT,       /* Windows decides the position */
     CW_USEDEFAULT,       /* where the window ends up on the screen */
     544,                 /* The programs width */
@@ -76,6 +75,28 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
   return messages.wParam;
 }
 
+static HFONT createFont() {
+  LOGFONTA lf;
+
+  lf.lfHeight = 20;
+  lf.lfWidth = 13;
+  lf.lfEscapement = 0;
+  lf.lfOrientation = 0;
+  lf.lfWeight = FW_NORMAL;
+  lf.lfItalic = FALSE;
+  lf.lfUnderline = FALSE;
+  lf.lfStrikeOut = FALSE;
+  lf.lfCharSet = ANSI_CHARSET;
+  lf.lfOutPrecision = OUT_DEFAULT_PRECIS;
+  lf.lfClipPrecision = CLIP_DEFAULT_PRECIS;
+  lf.lfQuality = DEFAULT_QUALITY;
+  lf.lfPitchAndFamily = FIXED_PITCH;
+  strcpy_s(lf.lfFaceName, sizeof(lf.lfFaceName), "Courier New");
+  //strcpy(lf.lfFaceName, "Courier New");
+
+  return CreateFontIndirectA(&lf);
+}
+
 static int defineVScrollInc(WPARAM wParam, const View* view) {
   if (!view) { return 0; }
 
@@ -86,7 +107,7 @@ static int defineVScrollInc(WPARAM wParam, const View* view) {
     break;
 
   case SB_BOTTOM:
-    vScrollInc = view->vScrollMax - view->vScrollPos;
+    vScrollInc = view->textData->strCount - view->vScrollPos;
     break;
 
   case SB_LINEUP:
@@ -106,9 +127,15 @@ static int defineVScrollInc(WPARAM wParam, const View* view) {
     break;
 
   case SB_THUMBTRACK:
-    vScrollInc = HIWORD(wParam) - view->vScrollPos;
+  {
+    SCROLLINFO si;
+    ZeroMemory(&si, sizeof(si));
+    si.cbSize = sizeof(si);
+    si.fMask = SIF_TRACKPOS;
+    GetScrollInfo(view->hwnd, SB_VERT, &si);
+    vScrollInc = si.nTrackPos - view->vScrollPos;
     break;
-
+  }
   default:
     vScrollInc = 0;
   }
@@ -153,13 +180,16 @@ static BOOL openFile(HWND hwnd, View** view, TextData** textData) {
   ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 
   if (GetOpenFileNameA(&ofn)) {
-    *textData = createTextData(ofn.lpstrFile);
-    *view = createView(*textData, TRUE, hwnd);
+    freeTextData(*textData);
+    freeView(*view);
 
-    RECT currRc;
-    GetClientRect(hwnd, &currRc);
-    resizeView(*view, currRc.right, currRc.bottom);
-    InvalidateRect(hwnd, &currRc, TRUE);
+    *textData = createTextData(ofn.lpstrFile);
+
+    HMENU hMenu = GetMenu(hwnd);
+    BOOL wrapFlag = GetMenuState(hMenu, IDM_SYMBOL_WRAP, MF_BYCOMMAND) == MF_CHECKED;
+    *view = createView(*textData, hwnd);
+    setWrapFlag(*view, wrapFlag);
+
     return TRUE;
   }
   return FALSE;
@@ -168,22 +198,22 @@ static BOOL openFile(HWND hwnd, View** view, TextData** textData) {
 static BOOL processCommand(HWND hwnd, WPARAM wParam, View** view, TextData** textData) {
   BOOL result = FALSE;
   switch (LOWORD(wParam)) {
-  case IDM_OPENFILE:
+  case IDM_OPEN_FILE:
   {
     result = openFile(hwnd, view, textData);
     break;
   }
-  case IDM_LINEBREAK:
+  case IDM_SYMBOL_WRAP:
   {
     HMENU hMenu = GetMenu(hwnd);
-    if (GetMenuState(hMenu, IDM_LINEBREAK, MF_BYCOMMAND) == MF_CHECKED) {
-      CheckMenuItem(hMenu, IDM_LINEBREAK, MF_UNCHECKED);
-      (*view)->lineBreak = FALSE;
-
+    BOOL isChecked = GetMenuState(hMenu, IDM_SYMBOL_WRAP, MF_BYCOMMAND) == MF_CHECKED;
+    if (isChecked) {
+      CheckMenuItem(hMenu, IDM_SYMBOL_WRAP, MF_UNCHECKED);
     } else {
-      CheckMenuItem(hMenu, IDM_LINEBREAK, MF_CHECKED);
-      (*view)->lineBreak = TRUE;
+      CheckMenuItem(hMenu, IDM_SYMBOL_WRAP, MF_CHECKED);
     }
+    setWrapFlag(*view, !isChecked);
+    break;
   }
   default:
   {
@@ -200,6 +230,10 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
 
   switch (message)                  /* handle the messages */
   {
+  case WM_CREATE:
+  {
+    SelectObject(GetDC(hwnd), createFont());
+  }
   case WM_SIZE:
   {
     resizeView(view, LOWORD(lParam), HIWORD(lParam));
@@ -231,6 +265,10 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
   {
     freeTextData(textData);
     freeView(view);
+
+    HFONT hf= SelectObject(GetDC(hwnd), GetStockObject(SYSTEM_FONT));
+    DeleteObject(hf);
+
     PostQuitMessage(0);       /* send a WM_QUIT to the message queue */
     break;
   }

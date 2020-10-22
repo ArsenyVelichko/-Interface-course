@@ -2,6 +2,8 @@
 #include <malloc.h>
 #include <Windows.h>
 
+#define READ_BUFFER_SIZE 1 << 16
+
 static int* splitToStrings(const char* buf, int* strCount) {
   int* strBegin = malloc(2 * sizeof(int));
   if (!strBegin) { return NULL; }
@@ -15,7 +17,7 @@ static int* splitToStrings(const char* buf, int* strCount) {
 
       if (tmp) {
         strBegin = tmp;
-        strBegin[*strCount] = i;
+        strBegin[*strCount] = i + 1;
         (*strCount)++;
 
       } else {
@@ -30,31 +32,49 @@ static int* splitToStrings(const char* buf, int* strCount) {
 
 static int maxLen(int* strBegin, int size) {
   int maxLen = 0;
-  for (int i = 0; i < size - 1; i++) {
+  for (int i = 0; i < size; i++) {
     maxLen = max(strBegin[i + 1] - strBegin[i] - 1, maxLen);
   }
-  maxLen = max(strBegin[size] - strBegin[size - 1], maxLen);
   return maxLen;
 }
 
-TextData* createTextData(const char* fileName) {
+static char* readTextFile(const char* fileName) {
   FILE* source;
-  //source = fopen(fileName, "rb");
+  //source = fopen(fileName, "rt");
   //if (!source) { return NULL; }
-  errno_t err = fopen_s(&source, fileName, "rb");
+  errno_t err = fopen_s(&source, fileName, "rt");
   if (err) { return NULL; }
 
-  fseek(source, 0, SEEK_END);
-  int len = ftell(source);
-  fseek(source, 0, SEEK_SET);
+  char buf[READ_BUFFER_SIZE];
+  char* data = malloc(sizeof(char));
+  if (!data) { return NULL; }
+  int dataSize = 1;
 
+  while (!feof(source)) {
+    int nRead = fread(buf, sizeof(char), sizeof(buf), source);
+    char* tmp = realloc(data, (dataSize + nRead) * sizeof(char));
+
+    if (tmp) {
+      data = tmp;
+      memcpy(data + dataSize - 1, buf, nRead * sizeof(char));
+      dataSize += nRead;
+
+    } else {
+      free(data);
+      return NULL;
+    }
+  }
+  data[dataSize - 1] = '\0';
+  fclose(source);
+  return data;
+}
+
+TextData* createTextData(const char* fileName) {
   TextData* textData = malloc(sizeof(TextData));
-
   if (textData) {
-    textData->strings = malloc((len + 1) * sizeof(char));
+    textData->strings = readTextFile(fileName);
+
     if (textData->strings) {
-      fread(textData->strings, sizeof(char), len, source);
-      textData->strings[len] = '\0';
       textData->strBegin = splitToStrings(textData->strings, &textData->strCount);
     }
 
@@ -66,7 +86,6 @@ TextData* createTextData(const char* fileName) {
       textData->maxLen = maxLen(textData->strBegin, textData->strCount);
     }
   }
-  fclose(source);
   return textData;
 }
 

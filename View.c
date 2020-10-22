@@ -2,37 +2,13 @@
 #include <assert.h>
 #include "Resource.h"
 
-static HFONT createFont() {
-  LOGFONTA lf;
-
-  lf.lfHeight = 15;
-  lf.lfWidth = 10;
-  lf.lfEscapement = 0;
-  lf.lfOrientation = 0;
-  lf.lfWeight = FW_NORMAL;
-  lf.lfItalic = FALSE;
-  lf.lfUnderline = FALSE;
-  lf.lfStrikeOut = FALSE;
-  lf.lfCharSet = ANSI_CHARSET;
-  lf.lfOutPrecision = OUT_DEFAULT_PRECIS;
-  lf.lfClipPrecision = CLIP_DEFAULT_PRECIS;
-  lf.lfQuality = DEFAULT_QUALITY;
-  lf.lfPitchAndFamily = FIXED_PITCH;
-  strcpy_s(lf.lfFaceName, sizeof(lf.lfFaceName), "Courier New");
-  //strcpy(lf.lfFaceName, "Courier New");
-
-  return CreateFontIndirectA(&lf);
-}
-
-View* createView(TextData* textData, BOOL lineBreak, HWND hwnd) {
+View* createView(TextData* textData, HWND hwnd) {
   if (!textData) { return NULL; }
 
   View* view = malloc(sizeof(View));
   if (!view) { return NULL; }
 
   HDC hdc = GetDC(hwnd);
-  HFONT prevFont = SelectObject(hdc, createFont());
-
   TEXTMETRIC tm;
   GetTextMetrics(hdc, &tm);
 
@@ -42,10 +18,8 @@ View* createView(TextData* textData, BOOL lineBreak, HWND hwnd) {
   view->textData = textData;
   view->vScrollPos = 0;
   view->hScrollPos = 0;
-  view->dataPixelWidth = textData->maxLen * view->xChar;
-  view->lineBreak = lineBreak;
-  view->font = SelectObject(hdc, prevFont);
 
+  InvalidateRect(hwnd, NULL, TRUE);
   ReleaseDC(hwnd, hdc);
   return view;
 }
@@ -55,62 +29,96 @@ void drawView(View* view) {
 
   PAINTSTRUCT ps;
   HDC hdc = BeginPaint(view->hwnd, &ps);
-  SelectObject(hdc, view->font);
 
   TextData* td = view->textData;
-  int startPos = max(0, view->vScrollPos + ps.rcPaint.top / view->yChar);
-  int endPos = min(td->strCount, view->vScrollPos + ps.rcPaint.bottom / view->yChar + 1);
+  int startPos = view->vScrollPos + ps.rcPaint.top / view->yChar;
+  int endPos = min(view->vScrollMax, view->vScrollPos + ps.rcPaint.bottom / view->yChar + 1);
 
   for (int i = startPos; i < endPos; i++) {
     int x = -view->hScrollPos;
     int y = view->yChar * (i - view->vScrollPos);
 
-    char* str = td->strings + td->strBegin[i];
-    int charLen = td->strBegin[i + 1] - td->strBegin[i];
-
-    int logicLen = charLen * view->xChar;
-    if (view->lineBreak && logicLen > view->xClient) {
-    }
-
-    TextOutA(hdc, x, y, str, charLen);
+    int charLen = view->lineBegin[i + 1] - view->lineBegin[i];
+    TextOutA(hdc, x, y, td->strings + view->lineBegin[i], charLen);
   }
   EndPaint(view->hwnd, &ps);
 }
 
+static void shrinkToFit(View* view) {
+  TextData* td = view->textData;
+  int maxCharLen = view->xClient / view->xChar;
+
+  view->vScrollMax = 0;
+  for (int i = 0; i < td->strCount; i++) {
+    int strLen = td->strBegin[i + 1] - td->strBegin[i] - 1;
+    int subStrNum = (strLen - 1) / maxCharLen + 1;
+    view->vScrollMax += subStrNum;
+  }
+  
+  int* tmp = realloc(view->lineBegin, (view->vScrollMax + 1) * sizeof(int));
+  if (!tmp) { return; }
+  view->lineBegin = tmp;
+
+  for (int i = 0, j = 0; i < td->strCount; i++) {
+    int strLen = max(1, td->strBegin[i + 1] - td->strBegin[i] - 1);
+    for (int k = 0; k < strLen; k += maxCharLen) {
+      view->lineBegin[j++] = td->strBegin[i] + k;
+    }
+  }
+  view->lineBegin[view->vScrollMax] = td->strBegin[td->strCount];
+}
+
 void resizeView(View* view, int newWidth, int newHeight) {
   if (!view) { return; }
-  int prevVPos = view->vScrollPos;
-  int prevHPos = view->hScrollPos;
 
+  TextData* td = view->textData;
   view->xClient = newWidth;
   view->yClient = newHeight;
 
-  view->vScrollMax = max(0, view->textData->strCount - newHeight / view->yChar);
-  view->vScrollPos = min(view->vScrollPos, view->vScrollMax);
-
-  view->hScrollMax = max(0, view->dataPixelWidth - newWidth);
-  view->hScrollPos = min(view->hScrollPos, view->hScrollMax);
-
-  SetScrollRange(view->hwnd, SB_VERT, 0, view->vScrollMax, FALSE);
-  SetScrollPos(view->hwnd, SB_VERT, view->vScrollPos, TRUE);
-
-  SetScrollRange(view->hwnd, SB_HORZ, 0, view->hScrollMax, FALSE);
-  SetScrollPos(view->hwnd, SB_HORZ, view->hScrollPos, TRUE);
-
-  if (prevVPos != view->vScrollPos || prevHPos != view->hScrollPos) {
-    RECT clientRc = {0, 0, newWidth, newHeight};
-    InvalidateRect(view->hwnd, &clientRc, TRUE);
+  if (view->symbolWrap) {
+    shrinkToFit(view);
+    InvalidateRect(view->hwnd, NULL, TRUE);
   }
+
+  int strOccupied = newHeight / view->yChar;
+  int maxPos = max(0, view->vScrollMax - strOccupied);
+  if (view->vScrollPos > maxPos) {
+    InvalidateRect(view->hwnd, NULL, TRUE);
+    view->vScrollPos = maxPos;
+  }
+
+  maxPos = max(0, view->hScrollMax - newWidth);
+  if (view->hScrollPos > maxPos) {
+    InvalidateRect(view->hwnd, NULL, TRUE);
+    view->hScrollPos = maxPos;
+  }
+
+  SCROLLINFO si;
+  si.cbSize = sizeof(si);
+  si.fMask = SIF_ALL;
+  si.nMin = 0;
+  si.nMax = view->vScrollMax;
+  si.nPos = view->vScrollPos;
+  si.nPage = strOccupied + 1;
+  SetScrollInfo(view->hwnd, SB_VERT, &si, TRUE);
+
+  si.nMax = view->hScrollMax;
+  si.nPos = view->hScrollPos;
+  si.nPage = view->xClient;
+  SetScrollInfo(view->hwnd, SB_HORZ, &si, TRUE);
 }
 
 static int clamp(int v, int lo, int hi) {
-  assert(lo < hi);
+  assert(lo <= hi);
   return (v < lo) ? lo : (hi < v) ? hi : v;
 }
 
 void scrollViewV(View* view, int inc) {
   if (!view) { return; }
-  inc = clamp(inc, -view->vScrollPos, view->vScrollMax - view->vScrollPos);
+
+  int strOccupied = view->yClient / view->yChar;
+  int maxPos = max(0, view->vScrollMax - strOccupied);
+  inc = clamp(inc, -view->vScrollPos, maxPos - view->vScrollPos);
 
   if (inc != 0) {
     view->vScrollPos += inc;
@@ -122,7 +130,9 @@ void scrollViewV(View* view, int inc) {
 
 void scrollViewH(View* view, int inc) {
   if (!view) { return; }
-  inc = clamp(inc, -view->hScrollPos, view->hScrollMax - view->hScrollPos);
+
+  int maxPos = max(0, view->hScrollMax - view->xClient);
+  inc = clamp(inc, -view->hScrollPos, maxPos - view->hScrollPos);
 
   if (inc != 0) {
     view->hScrollPos += inc;
@@ -131,9 +141,29 @@ void scrollViewH(View* view, int inc) {
   }
 }
 
+void setWrapFlag(View* view, BOOL flag) {
+  if (!view || view->symbolWrap == flag) { return; }
+
+  view->symbolWrap = flag;
+  RECT currRc;
+  GetClientRect(view->hwnd, &currRc);
+  if (!flag) {
+    TextData* td = view->textData;
+    view->hScrollMax = td->maxLen * view->xChar;
+    view->lineBegin = td->strBegin;
+    view->vScrollMax = td->strCount;
+  } else {
+    view->lineBegin = NULL;
+    view->hScrollMax = 0;
+  }
+
+  resizeView(view, currRc.right - currRc.left, currRc.bottom - currRc.top);
+  InvalidateRect(view->hwnd, NULL, TRUE);
+}
+
 void freeView(View* view) {
-  if (view) {
-    DeleteObject(view->font);
+  if (view && view->symbolWrap) {
+    free(view->lineBegin);
   }
   free(view);
 }

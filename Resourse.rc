@@ -2,10 +2,10 @@
 
 Interface MENU {
   POPUP "&Файл" {
-    MENUITEM "&Открыть...",        IDM_OPENFILE
+    MENUITEM "&Открыть...",        IDM_OPEN_FILE
   }
 
   POPUP "Фор&мат" {
-    MENUITEM "&Перенос по символам", IDM_LINEBREAK, CHECKED
+    MENUITEM "&Перенос по символам", IDM_SYMBOL_WRAP, CHECKED
   }
 }

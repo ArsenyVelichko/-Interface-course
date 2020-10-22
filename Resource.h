@@ -1,5 +1,5 @@
 #pragma once
 
-#define IDM_OPENFILE 0
-#define IDM_LINEBREAK 1
+#define IDM_OPEN_FILE 0
+#define IDM_SYMBOL_WRAP 1
 ;
