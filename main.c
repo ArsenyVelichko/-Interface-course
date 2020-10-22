@@ -97,33 +97,16 @@ static HFONT createFont() {
   return CreateFontIndirectA(&lf);
 }
 
-static int defineVScrollInc(WPARAM wParam, const View* view) {
-  if (!view) { return 0; }
+static void processVScroll(WPARAM wParam, View* view) {
+  if (!view) { return; }
 
-  int vScrollInc;
   switch (LOWORD(wParam)) {
-  case SB_TOP:
-    vScrollInc = -view->vScrollPos;
-    break;
-
-  case SB_BOTTOM:
-    vScrollInc = view->textData->strCount - view->vScrollPos;
-    break;
-
   case SB_LINEUP:
-    vScrollInc = -1;
+    scrollViewV(view, -1);
     break;
 
   case SB_LINEDOWN:
-    vScrollInc = 1;
-    break;
-
-  case SB_PAGEUP:
-    vScrollInc = min(-1, -view->yClient / view->yChar);
-    break;
-
-  case SB_PAGEDOWN:
-    vScrollInc = max(1, view->yClient / view->yChar);
+    scrollViewV(view, 1);
     break;
 
   case SB_THUMBTRACK:
@@ -133,36 +116,67 @@ static int defineVScrollInc(WPARAM wParam, const View* view) {
     si.cbSize = sizeof(si);
     si.fMask = SIF_TRACKPOS;
     GetScrollInfo(view->hwnd, SB_VERT, &si);
-    vScrollInc = si.nTrackPos - view->vScrollPos;
+
+    scrollViewV(view, si.nTrackPos - view->vScrollPos);
     break;
   }
   default:
-    vScrollInc = 0;
+    break;
   }
-  return vScrollInc;
 }
 
-static int defineHScrollInc(WPARAM wParam, const View* view) {
-  if (!view) { return 0; }
+static void processHScroll(WPARAM wParam, View* view) {
+  if (!view) { return; }
 
-  int hScrollInc;
   switch (LOWORD(wParam)) {
   case SB_LINEUP:
-    hScrollInc = -1;
+    scrollViewH(view, -1);
     break;
 
   case SB_LINEDOWN:
-    hScrollInc = 1;
+    scrollViewH(view, 1);
     break;
 
   case SB_THUMBTRACK:
-    hScrollInc = HIWORD(wParam) - view->hScrollPos;
+    scrollViewH(view, HIWORD(wParam) - view->hScrollPos);
     break;
 
   default:
-    hScrollInc = 0;
+    break;
   }
-  return hScrollInc;
+}
+
+static void processKey(WPARAM wParam, View* view) {
+  if (!view) { return; }
+
+  switch (wParam) {
+  case VK_UP:
+    scrollViewV(view, -1);
+    break;
+
+  case VK_DOWN:
+    scrollViewV(view, 1);
+    break;
+
+  case VK_LEFT:
+    scrollViewH(view, -1);
+    break;
+
+  case VK_RIGHT:
+    scrollViewH(view, 1);
+    break;
+
+  case VK_PRIOR:
+    scrollViewV(view, -view->yClient / view->yChar);
+    break;
+
+  case VK_NEXT:
+    scrollViewV(view, view->yClient / view->yChar);
+    break;
+
+  default:
+    break;
+  }
 }
 
 static BOOL openFile(HWND hwnd, View** view, TextData** textData) {
@@ -231,6 +245,8 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
   {
   case WM_CREATE:
   {
+    SetScrollRange(hwnd, SB_VERT, 0, 0, TRUE);
+    SetScrollRange(hwnd, SB_HORZ, 0, 0, TRUE);
     SelectObject(GetDC(hwnd), createFont());
   }
   case WM_SIZE:
@@ -240,16 +256,19 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
     }
     break;
   }
+  case WM_KEYDOWN:
+  {
+    processKey(wParam, view);
+    break;
+  }
   case WM_VSCROLL:
   {
-    int inc = defineVScrollInc(wParam, view);
-    scrollViewV(view, inc);
+    processVScroll(wParam, view);
     break;
   }
   case WM_HSCROLL:
   {
-    int inc = defineHScrollInc(wParam, view);
-    scrollViewH(view, inc);
+    processHScroll(wParam, view);
     break;
   }
   case WM_PAINT:
@@ -267,7 +286,7 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
     freeTextData(textData);
     freeView(view);
 
-    HFONT hf= SelectObject(GetDC(hwnd), GetStockObject(SYSTEM_FONT));
+    HFONT hf = SelectObject(GetDC(hwnd), GetStockObject(SYSTEM_FONT));
     DeleteObject(hf);
 
     PostQuitMessage(0);       /* send a WM_QUIT to the message queue */
