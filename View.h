@@ -17,9 +17,9 @@ View* createView(TextData* textData, HWND hwnd);
 void freeView(View* view);
 
 void drawView(View* view);
-void resizeView(View* view, int newWidth, int newHeight);
+BOOL resizeView(View* view, int newWidth, int newHeight);
 
 void scrollViewV(View* view, int inc);
 void scrollViewH(View* view, int inc);
 
-void setWrapFlag(View* view, BOOL flag);
+void showView(View* view, BOOL wrapFlag);

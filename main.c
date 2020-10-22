@@ -188,8 +188,7 @@ static BOOL openFile(HWND hwnd, View** view, TextData** textData) {
     HMENU hMenu = GetMenu(hwnd);
     BOOL wrapFlag = GetMenuState(hMenu, IDM_SYMBOL_WRAP, MF_BYCOMMAND) == MF_CHECKED;
     *view = createView(*textData, hwnd);
-    setWrapFlag(*view, wrapFlag);
-
+    showView(*view, wrapFlag);
     return TRUE;
   }
   return FALSE;
@@ -212,7 +211,7 @@ static BOOL processCommand(HWND hwnd, WPARAM wParam, View** view, TextData** tex
     } else {
       CheckMenuItem(hMenu, IDM_SYMBOL_WRAP, MF_CHECKED);
     }
-    setWrapFlag(*view, !isChecked);
+    showView(*view, !isChecked);
     break;
   }
   default:
@@ -236,7 +235,9 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
   }
   case WM_SIZE:
   {
-    resizeView(view, LOWORD(lParam), HIWORD(lParam));
+    if (resizeView(view, LOWORD(lParam), HIWORD(lParam))) {
+      InvalidateRect(hwnd, NULL, TRUE);
+    }
     break;
   }
   case WM_VSCROLL:

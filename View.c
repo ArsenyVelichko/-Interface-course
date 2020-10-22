@@ -19,7 +19,6 @@ View* createView(TextData* textData, HWND hwnd) {
   view->vScrollPos = 0;
   view->hScrollPos = 0;
 
-  InvalidateRect(hwnd, NULL, TRUE);
   ReleaseDC(hwnd, hdc);
   return view;
 }
@@ -68,28 +67,29 @@ static void shrinkToFit(View* view) {
   view->lineBegin[view->vScrollMax] = td->strBegin[td->strCount];
 }
 
-void resizeView(View* view, int newWidth, int newHeight) {
-  if (!view) { return; }
+BOOL resizeView(View* view, int newWidth, int newHeight) {
+  if (!view) { return FALSE; }
 
   TextData* td = view->textData;
   view->xClient = newWidth;
   view->yClient = newHeight;
 
+  BOOL isInvalid = FALSE;
   if (view->symbolWrap) {
     shrinkToFit(view);
-    InvalidateRect(view->hwnd, NULL, TRUE);
+    isInvalid = TRUE;
   }
 
   int strOccupied = newHeight / view->yChar;
   int maxPos = max(0, view->vScrollMax - strOccupied);
   if (view->vScrollPos > maxPos) {
-    InvalidateRect(view->hwnd, NULL, TRUE);
+    isInvalid = TRUE;
     view->vScrollPos = maxPos;
   }
 
   maxPos = max(0, view->hScrollMax - newWidth);
   if (view->hScrollPos > maxPos) {
-    InvalidateRect(view->hwnd, NULL, TRUE);
+    isInvalid = TRUE;
     view->hScrollPos = maxPos;
   }
 
@@ -106,6 +106,7 @@ void resizeView(View* view, int newWidth, int newHeight) {
   si.nPos = view->hScrollPos;
   si.nPage = view->xClient;
   SetScrollInfo(view->hwnd, SB_HORZ, &si, TRUE);
+  return isInvalid;
 }
 
 static int clamp(int v, int lo, int hi) {
@@ -141,17 +142,18 @@ void scrollViewH(View* view, int inc) {
   }
 }
 
-void setWrapFlag(View* view, BOOL flag) {
-  if (!view || view->symbolWrap == flag) { return; }
+void showView(View* view, BOOL wrapFlag) {
+  if (!view) { return; }
 
-  view->symbolWrap = flag;
+  view->symbolWrap = wrapFlag;
   RECT currRc;
   GetClientRect(view->hwnd, &currRc);
-  if (!flag) {
+  if (!wrapFlag) {
     TextData* td = view->textData;
     view->hScrollMax = td->maxLen * view->xChar;
     view->lineBegin = td->strBegin;
     view->vScrollMax = td->strCount;
+
   } else {
     view->lineBegin = NULL;
     view->hScrollMax = 0;
