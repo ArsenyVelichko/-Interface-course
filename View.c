@@ -7,15 +7,18 @@ View* createView(TextData* textData, HWND hwnd) {
 
   View* view = malloc(sizeof(View));
   if (!view) { return NULL; }
-
+  
+  //Get text metrics
   HDC hdc = GetDC(hwnd);
   TEXTMETRIC tm;
   GetTextMetrics(hdc, &tm);
 
+  //Set appropriate window and data
   view->hwnd = hwnd;
+  view->textData = textData;
+  //Set size of characters and position of the scrolls
   view->xChar = tm.tmAveCharWidth;
   view->yChar = tm.tmHeight + tm.tmExternalLeading;
-  view->textData = textData;
   view->vScrollPos = 0;
   view->hScrollPos = 0;
 
@@ -30,9 +33,11 @@ void drawView(View* view) {
   HDC hdc = BeginPaint(view->hwnd, &ps);
 
   TextData* td = view->textData;
+  //Ñalculation of range of lines requiring redrawing
   int startPos = view->vScrollPos + ps.rcPaint.top / view->yChar;
   int endPos = min(view->vScrollMax, view->vScrollPos + ps.rcPaint.bottom / view->yChar + 1);
 
+  //Line by line output
   for (int i = startPos; i < endPos; i++) {
     int x = -view->hScrollPos;
     int y = view->yChar * (i - view->vScrollPos);
@@ -47,17 +52,20 @@ static void shrinkToFit(View* view) {
   TextData* td = view->textData;
   int maxCharLen = view->xClient / view->xChar;
 
+  //Calculate number of lines corresponding to current width of client window
   view->vScrollMax = 0;
   for (int i = 0; i < td->strCount; i++) {
     int strLen = td->strBegin[i + 1] - td->strBegin[i] - 1;
-    int subStrNum = (strLen - 1) / maxCharLen + 1;
+    int subStrNum = max(0, strLen - 1) / maxCharLen + 1;
     view->vScrollMax += subStrNum;
   }
   
+  //Allocate the required memory space for indexes of line beginnings
   int* tmp = realloc(view->lineBegin, (view->vScrollMax + 1) * sizeof(int));
   if (!tmp) { return; }
   view->lineBegin = tmp;
 
+  //Allocate the required memory space for indexes of line beginnings
   for (int i = 0, j = 0; i < td->strCount; i++) {
     int strLen = max(1, td->strBegin[i + 1] - td->strBegin[i] - 1);
     for (int k = 0; k < strLen; k += maxCharLen) {
@@ -69,6 +77,7 @@ static void shrinkToFit(View* view) {
 
 BOOL resizeView(View* view, int newWidth, int newHeight) {
   if (!view) { return FALSE; }
+  if (!newWidth || !newHeight) { return FALSE; }
 
   TextData* td = view->textData;
   view->xClient = newWidth;

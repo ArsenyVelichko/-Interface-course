@@ -1,10 +1,4 @@
-﻿#if defined(UNICODE) && !defined(_UNICODE)
-#define _UNICODE
-#elif defined(_UNICODE) && !defined(UNICODE)
-#define UNICODE
-#endif
-
-#include <tchar.h>
+﻿#include <tchar.h>
 #include <windows.h>
 #include "TextData.h"
 #include "View.h"
@@ -14,7 +8,7 @@
 LRESULT CALLBACK WindowProcedure(HWND, UINT, WPARAM, LPARAM);
 
 /*  Make the class name into a global variable  */
-TCHAR szClassName[] = _T("CodeBlocksWindowsApp");
+TCHAR szClassName[] = _T("Notepad");
 
 int WINAPI WinMain(HINSTANCE hThisInstance,
                    HINSTANCE hPrevInstance,
@@ -28,7 +22,7 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
   wincl.hInstance = hThisInstance;
   wincl.lpszClassName = szClassName;
   wincl.lpfnWndProc = WindowProcedure;      /* This function is called by windows */
-  wincl.style = CS_OWNDC;                 /* Catch double-clicks */
+  wincl.style = CS_OWNDC;
   wincl.cbSize = sizeof(WNDCLASSEX);
 
   /* Use default icon and mouse-pointer */
@@ -52,8 +46,8 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
     WS_OVERLAPPEDWINDOW | WS_VSCROLL | WS_HSCROLL,
     CW_USEDEFAULT,       /* Windows decides the position */
     CW_USEDEFAULT,       /* where the window ends up on the screen */
-    544,                 /* The programs width */
-    375,                 /* and height in pixels */
+    640,                 /* The programs width */
+    480,                 /* and height in pixels */
     HWND_DESKTOP,        /* The window is a child-window to desktop */
     NULL,                /* No menu */
     hThisInstance,       /* Program Instance handler */
@@ -79,7 +73,7 @@ static HFONT createFont() {
   LOGFONTA lf;
 
   lf.lfHeight = 20;
-  lf.lfWidth = 13;
+  lf.lfWidth = 10;
   lf.lfEscapement = 0;
   lf.lfOrientation = 0;
   lf.lfWeight = FW_NORMAL;
@@ -187,7 +181,7 @@ static BOOL openFile(HWND hwnd, View** view, TextData** textData) {
   ofn.lStructSize = sizeof(ofn);
   ofn.hwndOwner = hwnd;
   ofn.lpstrFile = szFile;
-  ofn.lpstrFilter = "Text\0*.TXT\0";
+  ofn.lpstrFilter = "Текстовые документы (*txt)\0*.TXT\0";
   ofn.nFilterIndex = 1;
   ofn.lpstrFile[0] = '\0';
   ofn.nMaxFile = sizeof(szFile);
@@ -203,6 +197,7 @@ static BOOL openFile(HWND hwnd, View** view, TextData** textData) {
     BOOL wrapFlag = GetMenuState(hMenu, IDM_SYMBOL_WRAP, MF_BYCOMMAND) == MF_CHECKED;
     *view = createView(*textData, hwnd);
     showView(*view, wrapFlag);
+
     return TRUE;
   }
   return FALSE;

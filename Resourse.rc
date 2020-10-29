@@ -2,7 +2,7 @@
 
 Interface MENU {
   POPUP "&Файл" {
-    MENUITEM "&Открыть...",        IDM_OPEN_FILE
+    MENUITEM "&Открыть...",          IDM_OPEN_FILE
   }
 
   POPUP "Фор&мат" {

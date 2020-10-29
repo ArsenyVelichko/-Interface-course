@@ -4,38 +4,33 @@
 
 #define READ_BUFFER_SIZE 1 << 16
 
-static int* splitToStrings(const char* buf, int* strCount) {
-  int* strBegin = malloc(2 * sizeof(int));
-  if (!strBegin) { return NULL; }
-  strBegin[0] = 0;
-  *strCount = 1;
-  
+static void splitToStrings(TextData* td) {
+  td->strBegin = malloc(2 * sizeof(int));
+  if (!td->strBegin) { return; }
+  td->strBegin[0] = 0;
+  td->strCount = 1;
+  td->maxLen = 0;
+
   int i;
-  for (i = 0; buf[i]; i++) {
-    if (buf[i] == '\n') {
-      int* tmp = realloc(strBegin, (*strCount + 2) * sizeof(int));
+  for (i = 0; td->strings[i]; i++) {
+    if (td->strings[i] == '\n') {
+      int* tmp = realloc(td->strBegin, (td->strCount + 2) * sizeof(int));
 
       if (tmp) {
-        strBegin = tmp;
-        strBegin[*strCount] = i + 1;
-        (*strCount)++;
+        td->strBegin = tmp;
+        td->strBegin[td->strCount] = i + 1;
+        td->maxLen = max(i - td->strBegin[td->strCount - 1], td->maxLen);
+        td->strCount++;
 
       } else {
-        free(strBegin);
-        return NULL;
+        free(td->strBegin);
+        td->strBegin = NULL;
+        return;
       }
     }
   }
-  strBegin[*strCount] = i;
-  return strBegin;
-}
-
-static int maxLen(int* strBegin, int size) {
-  int maxLen = 0;
-  for (int i = 0; i < size; i++) {
-    maxLen = max(strBegin[i + 1] - strBegin[i] - 1, maxLen);
-  }
-  return maxLen;
+  td->strBegin[td->strCount] = i;
+  td->maxLen = max(i - td->strBegin[td->strCount - 1], td->maxLen);
 }
 
 static char* readTextFile(const char* fileName) {
@@ -48,10 +43,10 @@ static char* readTextFile(const char* fileName) {
   char buf[READ_BUFFER_SIZE];
   char* data = malloc(sizeof(char));
   if (!data) { return NULL; }
-  int dataSize = 1;
+  size_t dataSize = 1;
 
   while (!feof(source)) {
-    int nRead = fread(buf, sizeof(char), sizeof(buf), source);
+    size_t nRead = fread(buf, sizeof(char), sizeof(buf), source);
     char* tmp = realloc(data, (dataSize + nRead) * sizeof(char));
 
     if (tmp) {
@@ -75,15 +70,13 @@ TextData* createTextData(const char* fileName) {
     textData->strings = readTextFile(fileName);
 
     if (textData->strings) {
-      textData->strBegin = splitToStrings(textData->strings, &textData->strCount);
+      splitToStrings(textData);
     }
 
     if (!textData->strings || !textData->strBegin) {
       free(textData->strings);
       free(textData);
       textData = NULL;
-    } else {
-      textData->maxLen = maxLen(textData->strBegin, textData->strCount);
     }
   }
   return textData;

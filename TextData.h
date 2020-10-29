@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 
+//Structure that stores text and some of its metrics
 typedef struct {
   int strCount;
   int maxLen;
@@ -9,5 +10,7 @@ typedef struct {
   int* strBegin;
 } TextData;
 
+//Constructor of text data
 TextData* createTextData(const char* fileName);
+//Destructor of text data
 void freeTextData(TextData* textData);
