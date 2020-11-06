@@ -1,7 +1,7 @@
 #include "View.h"
 #include <assert.h>
 #include "Resource.h"
-#include <stdio.h>
+
 View* createView(TextData* textData, HWND hwnd) {
   if (!textData) { return NULL; }
 

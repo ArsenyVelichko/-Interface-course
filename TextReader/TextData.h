@@ -1,7 +1,5 @@
 #pragma once
 
-#include <stdio.h>
-
 //Structure that stores text and some of its metrics
 typedef struct {
   int strCount;

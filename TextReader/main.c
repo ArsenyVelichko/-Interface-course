@@ -4,6 +4,12 @@
 #include "View.h"
 #include "Resource.h"
 
+#if defined(UNICODE) && !defined(_UNICODE)
+#define _UNICODE
+#elif defined(_UNICODE) && !defined(UNICODE)
+#define UNICODE
+#endif
+
 /*  Declare Windows procedure  */
 LRESULT CALLBACK WindowProcedure(HWND, UINT, WPARAM, LPARAM);
 
@@ -26,10 +32,10 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
   wincl.cbSize = sizeof(WNDCLASSEX);
 
   /* Use default icon and mouse-pointer */
-  wincl.hIcon = LoadIcon(hThisInstance, L"BookIcon");
-  wincl.hIconSm = LoadIcon(hThisInstance, L"SmallIcon");
+  wincl.hIcon = LoadIcon(hThisInstance, _T("BookIcon"));
+  wincl.hIconSm = LoadIcon(hThisInstance, _T("SmallIcon"));
   wincl.hCursor = LoadCursor(NULL, IDC_ARROW);
-  wincl.lpszMenuName = L"TextReaderMenu";
+  wincl.lpszMenuName = _T("TextReaderMenu");
   wincl.cbClsExtra = 0;                      /* No extra bytes after the window class */
   wincl.cbWndExtra = 0;                      /* structure or the window instance */
   wincl.hbrBackground = GetStockObject(WHITE_BRUSH);
