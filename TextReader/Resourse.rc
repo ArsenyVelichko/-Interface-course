@@ -1,0 +1,14 @@
+#include "Resource.h"
+
+BookIcon ICON book.ico
+SmallIcon ICON small.ico
+
+TextReaderMenu MENU {
+  POPUP "&Файл" {
+    MENUITEM "&Открыть...",          IDM_OPEN_FILE
+  }
+
+  POPUP "Фор&мат" {
+    MENUITEM "&Перенос по символам", IDM_SYMBOL_WRAP, CHECKED
+  }
+}

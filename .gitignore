@@ -1,0 +1,7 @@
+/.vs
+/FileReading/x64
+/TextReader/x64
+/x64
+*.user
+*.ico
+*.filters
