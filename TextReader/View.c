@@ -21,6 +21,7 @@ View* createView(TextData* textData, HWND hwnd) {
   view->yChar = tm.tmHeight + tm.tmExternalLeading;
   view->vScrollPos = 0;
   view->hScrollPos = 0;
+  view->lineBegin = textData->strBegin;
 
   ReleaseDC(hwnd, hdc);
   return view;
@@ -73,18 +74,20 @@ static void shrinkToFit(View* view) {
   view->lineBegin = tmp;
 
   //Allocate the required memory space for indexes of line beginnings
+  BOOL newUpFound = FALSE;
   for (int i = 0, j = 0; i < td->strCount; i++) {
-    //save first position of upper string
-    if (td->strBegin[i] == currUpI) {
-        view->vScrollPos = j;
-    }
-
     int strLen = max(1, td->strBegin[i + 1] - td->strBegin[i] - 1);
-    for (int k = 0; k < strLen; k += maxCharLen) {
-      view->lineBegin[j++] = td->strBegin[i] + k;
+    for (int k = 0; k < strLen; k += maxCharLen, j++) {
+      view->lineBegin[j] = td->strBegin[i] + k;
+
+      if (!newUpFound && view->lineBegin[j] > currUpI) {
+        view->vScrollPos = j - 1;
+        newUpFound = TRUE;
+      }
     }
   }
   view->lineBegin[view->vScrollMax] = td->strBegin[td->strCount];
+  if (!newUpFound) { view->vScrollPos = view->vScrollMax - 1; }
 }
 
 BOOL resizeView(View* view, int newWidth, int newHeight) {
