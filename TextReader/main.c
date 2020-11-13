@@ -179,6 +179,10 @@ static void processKey(WPARAM wParam, View* view) {
   }
 }
 
+static BOOL isChecked(HWND hwnd, UINT itemID) {
+  UINT result = GetMenuState(GetMenu(hwnd), itemID, MF_BYCOMMAND);
+  return result == MF_CHECKED;
+}
 //
 static BOOL openFile(HWND hwnd, View** view, TextData** textData) {
   OPENFILENAMEA ofn;
@@ -201,11 +205,8 @@ static BOOL openFile(HWND hwnd, View** view, TextData** textData) {
 
     //create new text data from selected file
     *textData = createTextData(ofn.lpstrFile);
-
-    HMENU hMenu = GetMenu(hwnd);
-    BOOL wrapFlag = GetMenuState(hMenu, IDM_SYMBOL_WRAP, MF_BYCOMMAND) == MF_CHECKED;
     *view = createView(*textData, hwnd);
-    showView(*view, wrapFlag);
+    showView(*view, isChecked(hwnd, IDM_SYMBOL_WRAP));
 
     return TRUE;
   }
@@ -223,16 +224,16 @@ static BOOL processCommand(HWND hwnd, WPARAM wParam, View** view, TextData** tex
   case IDM_SYMBOL_WRAP:
   {
     HMENU hMenu = GetMenu(hwnd);
-    //get state of wrap field
-    BOOL isChecked = GetMenuState(hMenu, IDM_SYMBOL_WRAP, MF_BYCOMMAND) == MF_CHECKED;
+
     //switch field state
-    if (isChecked) {
+    BOOL wrapFlag = isChecked(hwnd, IDM_SYMBOL_WRAP);
+    if (wrapFlag) {
       CheckMenuItem(hMenu, IDM_SYMBOL_WRAP, MF_UNCHECKED);
     } else {
       CheckMenuItem(hMenu, IDM_SYMBOL_WRAP, MF_CHECKED);
     }
     //show view in new mode
-    showView(*view, !isChecked);
+    showView(*view, !wrapFlag);
     break;
   }
   default:
@@ -256,11 +257,9 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
     CREATESTRUCT* cs = (CREATESTRUCT*)lParam;
     //create new text data from selected file
     textData = createTextData(cs->lpCreateParams);
-
-    HMENU hMenu = GetMenu(hwnd);
-    BOOL wrapFlag = GetMenuState(hMenu, IDM_SYMBOL_WRAP, MF_BYCOMMAND) == MF_CHECKED;
     view = createView(textData, hwnd);
-    showView(view, wrapFlag);
+    showView(view, isChecked(hwnd, IDM_SYMBOL_WRAP));
+
     //delete scroll bars
     SetScrollRange(hwnd, SB_VERT, 0, 0, TRUE);
     SetScrollRange(hwnd, SB_HORZ, 0, 0, TRUE);

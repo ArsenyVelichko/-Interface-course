@@ -16,6 +16,7 @@ typedef struct {
 
 //Constructor of view
 View* createView(TextData* textData, HWND hwnd);
+
 //Destructor of view
 void freeView(View* view);
 

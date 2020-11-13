@@ -5,7 +5,7 @@
 View* createView(TextData* textData, HWND hwnd) {
   if (!textData) { return NULL; }
 
-  View* view = malloc(sizeof(View));
+  View* view = calloc(1, sizeof(View));
   if (!view) { return NULL; }
 
   //Get text metrics
@@ -15,17 +15,15 @@ View* createView(TextData* textData, HWND hwnd) {
 
   //Set appropriate window and data
   view->hwnd = hwnd;
-  view->textData = textData;
   //Set size of characters and position of the scrolls
   view->xChar = tm.tmAveCharWidth;
   view->yChar = tm.tmHeight + tm.tmExternalLeading;
-  view->vScrollPos = 0;
-  view->hScrollPos = 0;
-  view->lineBegin = textData->strBegin;
+  view->textData = textData;
 
   ReleaseDC(hwnd, hdc);
   return view;
 }
+
 
 void drawView(View* view) {
   if (!view) { return; }
@@ -49,17 +47,21 @@ void drawView(View* view) {
   EndPaint(view->hwnd, &ps);
 }
 
+static int topCharIndex(View* view) {
+  if (!view->lineBegin) {
+    return view->textData->strBegin[view->vScrollPos];
+  } else {
+    return view->lineBegin[view->vScrollPos];
+  }
+}
+
 static void shrinkToFit(View* view) {
   TextData* td = view->textData;
   int maxCharLen = view->xClient / view->xChar;
 
   //find position of upper string
-  int currUpI;
-  if (!view->lineBegin) {
-    currUpI = td->strBegin[view->vScrollPos];
-  } else {
-    currUpI = view->lineBegin[view->vScrollPos];
-  }
+  int topChar = topCharIndex(view);
+
   //Calculate number of lines corresponding to current width of client window
   view->vScrollMax = 0;
   for (int i = 0; i < td->strCount; i++) {
@@ -80,7 +82,7 @@ static void shrinkToFit(View* view) {
     for (int k = 0; k < strLen; k += maxCharLen, j++) {
       view->lineBegin[j] = td->strBegin[i] + k;
 
-      if (!newUpFound && view->lineBegin[j] > currUpI) {
+      if (!newUpFound && view->lineBegin[j] > topChar) {
         view->vScrollPos = j - 1;
         newUpFound = TRUE;
       }
@@ -165,27 +167,29 @@ void scrollViewH(View* view, int inc) {
   }
 }
 
-static int findUpperIndex(View* view) {
-  TextData* td = view->textData;
-  int upperLineI = view->lineBegin[view->vScrollPos];
-  for (int i = 0; i < td->strCount; i++) {
-    if (upperLineI < td->strBegin[i + 1]) {
-      return i;
+//TODO: Replace by Binary search
+static int findOrderedPlace(int elem, int* arr, int size) {
+  for (int i = 0; i < size; i++) {
+    if (elem < arr[i]) {
+      return i - 1;
     }
   }
-  return -1;
+  return size;
 }
 
 void showView(View* view, BOOL wrapFlag) {
   if (!view) { return; }
 
   view->symbolWrap = wrapFlag;
-  RECT currRc;
-  GetClientRect(view->hwnd, &currRc);
   if (!wrapFlag) {
+    int topChar = topCharIndex(view);
+    free(view->lineBegin);
+
     TextData* td = view->textData;
     view->hScrollMax = td->maxLen * view->xChar;
-    view->vScrollPos = findUpperIndex(view); //save position on index of upper string
+    //save position on index of upper string
+    view->vScrollPos = findOrderedPlace(topChar, td->strBegin, td->strCount + 1);
+
     view->lineBegin = td->strBegin;
     view->vScrollMax = td->strCount;
 
@@ -194,7 +198,9 @@ void showView(View* view, BOOL wrapFlag) {
     view->hScrollMax = 0;
   }
 
-  resizeView(view, currRc.right - currRc.left, currRc.bottom - currRc.top);
+  RECT currRc;
+  GetClientRect(view->hwnd, &currRc);
+  resizeView(view, currRc.right, currRc.bottom);
   InvalidateRect(view->hwnd, NULL, TRUE);
 }
 
